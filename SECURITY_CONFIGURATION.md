@@ -27,13 +27,15 @@ USING ((select auth.uid()) = id)
 - `kyc_documents` - 2 policies
 - `wallets` - 4 policies
 
-### ✅ Index Optimization (Applied)
-Removed unused indexes to reduce write overhead:
-- `idx_transactions_status`
-- `idx_transactions_created`
-- `idx_kyc_user`
-- `idx_wallets_user`
-- `idx_wallets_address`
+### ✅ Foreign Key Indexes (Applied)
+Added indexes for all foreign key columns to optimize JOIN performance:
+- `idx_kyc_documents_user_id` - Foreign key to profiles
+- `idx_wallets_user_id` - Foreign key to profiles
+
+**Impact:**
+- Faster queries when filtering by user_id
+- Better JOIN performance between tables
+- Improved foreign key constraint checking
 
 **Kept Essential Indexes:**
 - `idx_transactions_sender` - Used for transaction lookups by sender
@@ -41,29 +43,41 @@ Removed unused indexes to reduce write overhead:
 
 ## Manual Configuration Required
 
-### ⚠️ Enable Leaked Password Protection
+### ⚠️ CRITICAL: Enable Leaked Password Protection
 
 **Why This Matters:**
-Supabase Auth can check passwords against HaveIBeenPwned.org to prevent users from using compromised passwords. This adds an important security layer.
+Supabase Auth can check passwords against HaveIBeenPwned.org to prevent users from using compromised passwords. This is a **critical security feature** that protects users from credential stuffing attacks.
 
-**How to Enable:**
+**📋 Step-by-Step Instructions:**
 
-1. Go to your Supabase Dashboard
-2. Navigate to **Authentication** > **Policies**
-3. Find **Password Requirements** section
-4. Enable **"Check password against HaveIBeenPwned"**
+1. **Open Supabase Dashboard**
+   - Go to: https://supabase.com/dashboard
+   - Select your project
 
-**Alternative - Via Supabase Management API:**
+2. **Navigate to Authentication Settings**
+   - Click on **"Authentication"** in the left sidebar
+   - Then click on **"Policies"** or **"Password"** tab
 
-```bash
-curl -X PATCH 'https://api.supabase.com/v1/projects/{ref}/config/auth' \
-  -H "Authorization: Bearer {service_role_key}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION": true,
-    "PASSWORD_HIBP_ENABLED": true
-  }'
-```
+3. **Enable Password Protection**
+   - Look for **"Security and Protection"** section
+   - Find the option: **"Leaked Password Protection"** or **"HaveIBeenPwned Integration"**
+   - Toggle it **ON**
+   - Save changes
+
+**Alternative Path (if above doesn't work):**
+1. Go to **Project Settings** (gear icon)
+2. Click **"Authentication"**
+3. Scroll to **"Password Protection"**
+4. Enable **"Check against HaveIBeenPwned database"**
+
+**What This Does:**
+- ✅ Checks new passwords against 600M+ compromised passwords
+- ✅ Prevents users from choosing known leaked passwords
+- ✅ Protects against credential stuffing attacks
+- ✅ No performance impact (uses k-anonymity model)
+- ✅ User passwords are never sent to HaveIBeenPwned
+
+**Note:** This is a **dashboard-only setting** and cannot be applied via SQL migrations.
 
 ## Security Best Practices Currently Implemented
 
