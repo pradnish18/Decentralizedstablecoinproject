@@ -202,7 +202,7 @@ export function SendMoney() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Recipient Wallet Address
+            Recipient MetaMask Wallet Address
           </label>
           <input
             type="text"
@@ -212,9 +212,9 @@ export function SendMoney() {
             placeholder="0x..."
             required
             pattern="^0x[a-fA-F0-9]{40}$"
-            title="Please enter a valid Ethereum wallet address"
+            title="Please enter a valid MetaMask wallet address"
           />
-          <p className="mt-1 text-xs text-gray-500">Enter the recipient's Ethereum wallet address</p>
+          <p className="mt-1 text-xs text-gray-500">Enter the recipient's MetaMask wallet address (starts with 0x)</p>
         </div>
 
         {amountINR && (

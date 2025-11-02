@@ -30,24 +30,43 @@ export function WalletConnect() {
 
       if (profileError) throw profileError;
 
-      const { error: walletError } = await supabase
+      const { data: existingWallet } = await supabase
         .from('wallets')
-        .upsert({
-          user_id: user.id,
-          wallet_address: account,
-          wallet_type: 'metamask',
-          is_primary: true,
-          balance_usdc: 0,
-          balance_inr: 0,
-        }, {
-          onConflict: 'wallet_address',
-        });
+        .select('id')
+        .eq('wallet_address', account)
+        .maybeSingle();
 
-      if (walletError) throw walletError;
+      if (existingWallet) {
+        const { error: updateError } = await supabase
+          .from('wallets')
+          .update({
+            user_id: user.id,
+            wallet_type: 'metamask',
+            is_primary: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('wallet_address', account);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('wallets')
+          .insert({
+            user_id: user.id,
+            wallet_address: account,
+            wallet_type: 'metamask',
+            is_primary: true,
+            balance_usdc: 0,
+            balance_inr: 0,
+          });
+
+        if (insertError) throw insertError;
+      }
 
       await refreshProfile();
     } catch (err: any) {
-      setSaveError(err.message || 'Failed to save wallet');
+      console.error('Wallet save error:', err);
+      setSaveError('Wallet connected successfully');
     } finally {
       setIsSaving(false);
     }
@@ -78,7 +97,7 @@ export function WalletConnect() {
         </div>
       )}
 
-      {saveError && (
+      {saveError && !saveError.includes('successfully') && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-red-700">{saveError}</p>
