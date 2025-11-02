@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Shield, Upload, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Shield, Upload, CheckCircle, AlertCircle, Loader, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,56 @@ export function KYCVerification() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
+
+  // Real-time subscription for KYC status updates
+  useEffect(() => {
+    if (!user) return;
+
+    // Set initial status
+    setKycStatus(profile?.kyc_status || null);
+
+    // Subscribe to profile changes for real-time KYC updates
+    const profileSubscription = supabase
+      .channel('profile-kyc-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updatedProfile = payload.new as any;
+          setKycStatus(updatedProfile.kyc_status);
+          refreshProfile();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to KYC document changes
+    const kycSubscription = supabase
+      .channel('kyc-document-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'kyc_documents',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshProfile();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      profileSubscription.unsubscribe();
+      kycSubscription.unsubscribe();
+    };
+  }, [user, profile?.kyc_status, refreshProfile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,9 +89,8 @@ export function KYCVerification() {
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
-          kyc_status: 'verified',
+          kyc_status: 'pending',
           kyc_submitted_at: new Date().toISOString(),
-          kyc_verified_at: new Date().toISOString(),
           phone_number: phoneNumber,
         })
         .eq('id', user.id);
@@ -60,6 +109,33 @@ export function KYCVerification() {
   };
 
   if (!user) return null;
+
+  // Show pending status with real-time updates
+  if (profile?.kyc_status === 'pending' || kycStatus === 'pending') {
+    return (
+      <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
+        <div className="text-center py-8">
+          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-10 h-10 text-yellow-600 animate-pulse" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">KYC Pending Verification</h3>
+          <p className="text-gray-600 mb-4">Your documents are being reviewed</p>
+          <div className="inline-block px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+            Status: Under Review
+          </div>
+          <p className="mt-4 text-sm text-gray-500">
+            This usually takes 24-48 hours. You'll be notified once verified.
+          </p>
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2 justify-center text-sm text-blue-800">
+              <Loader className="w-4 h-4 animate-spin" />
+              <span>Real-time updates enabled - status will update automatically</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (profile?.kyc_status === 'verified') {
     return (
